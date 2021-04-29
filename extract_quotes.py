@@ -52,7 +52,6 @@ def detect_speaker(speaker):
 	if "PRESIDENTE" in speaker or "PRESIDETNE" in speaker or "PRESIENTE" in speaker:
 
 		p_match = re.search("\(.*\)", speaker)
-		print(speaker)
 		speaker_inner_string  = speaker[p_match.span()[0]: p_match.span()[1]]
 
 		president_name = re.sub("\)|\(","", speaker_inner_string).split("-")[0].split("–")[0].strip().upper()
