@@ -3,6 +3,7 @@ import os
 import pdftotext
 import pickle
 from tqdm import tqdm
+import nltk
 
 def pdf_footer_stripper(pdf):
 
@@ -12,7 +13,7 @@ def pdf_footer_stripper(pdf):
 		lines = pdf_page.strip().split("\n")
 		last_line = lines[-1]
 
-		if "ª" in last_line and "S" in last_line and "O" in last_line and "-" in last_line:
+		if "ª" in last_line and "S" in last_line and "-" in last_line:
 			del lines[-1]
 
 		if len(lines)>3:
@@ -65,7 +66,7 @@ def detect_speaker(speaker):
 
 
 
-def extract_quotes(pdf_text):
+def extract_quotes(pdf_text, sent_tokenizer):
 
 	text_len = len(pdf_text)
 	speaker_pattern = "O SR\..*\(.*\) (-|–) |A SRA\..*\(.*\) (-|–) "
@@ -74,7 +75,7 @@ def extract_quotes(pdf_text):
 	i =0
 	while(i<text_len-1):
 
-		for j in range(i+1, min(text_len, i+60)):
+		for j in range(i+1, min(text_len, i+100)):
 
 			t = pdf_text[i:j]
 
@@ -90,12 +91,16 @@ def extract_quotes(pdf_text):
 
 	quotes = []
 	
+	if not spanz:
+		return []
+		
 	quotes.append({
 		"speaker": "Intro", 
 		"quote":  pdf_text[0:spanz[0][0]]
 		})
 
 	spanz_len = len(spanz)
+
 	for idx, span in enumerate(spanz):
 
 		speaker = pdf_text[span[0]: span[1]]
@@ -106,10 +111,27 @@ def extract_quotes(pdf_text):
 		else:
 			quote = pdf_text[span[1]:].strip()
 
-		quotes.append({
-			"speaker": detect_speaker(speaker),
-			"quote": quote
-			})
+		detected_speaker = detect_speaker(speaker)		
+
+		quote = re.sub("sr\.", "senhor",quote, flags = re.IGNORECASE)
+		quote = re.sub("sra\.", "senhora",quote, flags = re.IGNORECASE)
+		quote = re.sub("srs\.", "senhores",quote, flags = re.IGNORECASE)
+		quote = re.sub("sras\.", "senhoras",quote, flags = re.IGNORECASE)
+		quote = re.sub("art\.", "artigo", quote, flags = re.IGNORECASE)
+		quote = re.sub("Exa.", "excelência", quote, flags = re.IGNORECASE)
+		quote = re.sub("Exo.", "excelêncio", quote, flags = re.IGNORECASE)
+		quote = re.sub("[0-9]+\.", "#", quote)
+		quote = re.sub("[0-9]+º\.", "#", quote)
+		quote = re.sub("[0-9]+ª\.", "#", quote)
+		
+		quote = re.sub("no\.", "número", quote)
+
+		for sentence in sent_tokenizer.tokenize(quote):	
+
+			quotes.append({
+				"speaker": detected_speaker,
+				"quote": sentence
+				})		
 
 	
 	return quotes
@@ -140,6 +162,7 @@ if __name__ == '__main__':
 
 
 			tt = remove_expediente_and_other_stuff(pdf_footer_stripper(pdf))
-			quotes = extract_quotes(tt)
+			sent_tokenizer=nltk.data.load('tokenizers/punkt/portuguese.pickle')
+			quotes = extract_quotes(tt, sent_tokenizer)
 
 			pickle.dump(quotes,open(os.path.join(t_quote_dir, f.replace(".pdf", ".pkl")), "wb"))
